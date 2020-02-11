@@ -1,0 +1,236 @@
+<html>
+<canvas id="theCanvas" width="400" height="400" style="border: 1px solid black"></canvas>
+<div id="theDiv">PLAYER ONE WINS: 0<br>PLAYER TWO WINS: 0</div>
+<script>
+function playerRuleOutMostOpen(w){
+    myLocation = w.whereArePlayers[w.whoseTurnIsIt];
+    openNeighbors = [];
+    for(x=0;x<w.numberOfNodes;x++){
+        openNeighbors[x] = 0;
+        for(y=0;y<w.numberOfNodes;y++){
+            if(x!=y){
+                if(w.areNodesConnected[x][y]&&(!w.isNodeRuledOut[y])){
+                    openNeighbors[x] += 1;
+                }
+            }
+        }
+    }
+    best = -1;
+    if(w.isNodeRuledOut[myLocation]){
+        max = 0;
+    }
+    else{
+        max = openNeighbors[myLocation];
+    }
+    for(x=0;x<w.numberOfNodes;x++){
+        if(w.areNodesConnected[myLocation][x]&&(openNeighbors[x]>max)&&(!w.isNodeRuledOut[x])){
+            best = x;
+        }
+    }
+    if(best==-1){
+        return {ruleOutOrMove:"ruleOut"};
+    }
+    else{
+        return {ruleOutOrMove:"move",moveTo:best};
+    }
+}
+function playerAlwaysMoveRandom(w){
+    myLocation = w.whereArePlayers[w.whoseTurnIsIt];
+    options = [];
+    for(x=0;x<w.numberOfNodes;x++){
+        if(w.areNodesConnected[myLocation][x]&&(!w.isNodeRuledOut[x])){
+            options[options.length] = x;
+        }
+    }
+    if(options.length>0){
+        return {ruleOutOrMove:"move",moveTo:options[Math.floor(Math.random()*options.length)]};
+    }
+    else{
+        return {ruleOutOrMove:"ruleOut"};
+    }
+}
+function playerAlwaysRuleOut(w){
+    myLocation = w.whereArePlayers[w.whoseTurnIsIt];
+    options = [];
+    for(x=0;x<w.numberOfNodes;x++){
+        if(w.areNodesConnected[myLocation][x]&&(!w.isNodeRuledOut[x])){
+            options[options.length] = x;
+        }
+    }
+    if(!w.isNodeRuledOut[myLocation]){
+        return {ruleOutOrMove:"ruleOut"};
+    }
+    else{
+        return {ruleOutOrMove:"move",moveTo:options[Math.floor(Math.random()*options.length)]};
+    }
+}
+function functionFromAdam(w){
+    myLocation = w.whereArePlayers[w.whoseTurnIsIt];
+    matchFound = false;
+    while(!matchFound){
+        test = Math.round(Math.random()*w.numberOfNodes);
+        if(w.areNodesConnected[myLocation][test]){
+            matchFound = true;
+        }
+    }
+    return {ruleOutOrMove:"move",moveTo:test};
+}
+function functionFromDan(){
+    if(Math.random()>.4){
+        return {ruleOutOrMove:"move",moveTo:Math.round(Math.random()*worldState.numberOfNodes/2)};
+    }
+    else{
+        return {ruleOutOrMove:"ruleOut"};
+    }
+}
+function redraw(){
+    ctx.fillStyle = "black";
+    ctx.fillRect(0,0,cnvs.width,cnvs.height);
+    largeRadius = .8*cnvs.width/2
+    centerX = cnvs.width/2;
+    centerY = cnvs.height/2;
+    halfBox = 8;
+    quarterBox = halfBox/2;
+    boxSize = halfBox*2;
+    ctx.strokeStyle = "gray";
+    for(a=0;a<worldState.numberOfNodes;a++){
+        for(b=0;b<worldState.numberOfNodes;b++){
+            if(worldState.areNodesConnected[a][b]){
+                angleA = Math.PI*2*a/worldState.numberOfNodes;
+                angleB = Math.PI*2*b/worldState.numberOfNodes;
+                ctx.beginPath();
+                ctx.moveTo(largeRadius*Math.cos(angleA)+centerX,largeRadius*Math.sin(angleA)+centerY);
+                ctx.lineTo(largeRadius*Math.cos(angleB)+centerY,largeRadius*Math.sin(angleB)+centerY);
+                ctx.stroke();
+            }
+        }
+    }
+    ctx.fillStyle = "white";
+    for(a=0;a<worldState.numberOfNodes;a++){
+        angle = Math.PI*2*a/worldState.numberOfNodes;
+        ctx.fillRect(Math.cos(angle)*largeRadius+centerX-halfBox,Math.sin(angle)*largeRadius+centerY-halfBox,boxSize,boxSize);
+    }
+    ctx.fillStyle = "blue";
+    angle = Math.PI*2*worldState.whereArePlayers[0]/worldState.numberOfNodes;
+    ctx.fillRect(Math.cos(angle)*largeRadius+centerX-halfBox,Math.sin(angle)*largeRadius+centerY-halfBox,boxSize,boxSize);
+    ctx.fillStyle = "red";
+    angle = Math.PI*2*worldState.whereArePlayers[1]/worldState.numberOfNodes;
+    ctx.fillRect(Math.cos(angle)*largeRadius+centerX-halfBox,Math.sin(angle)*largeRadius+centerY-halfBox,boxSize,boxSize);
+    ctx.fillStyle = "black";
+    for(a=0;a<worldState.numberOfNodes;a++){
+        if(worldState.isNodeRuledOut[a]){
+            angle = Math.PI*2*a/worldState.numberOfNodes;
+            ctx.fillRect(Math.cos(angle)*largeRadius+centerX-quarterBox,Math.sin(angle)*largeRadius+centerY-quarterBox,halfBox,halfBox);
+        }
+    }
+}
+function gameOver(){
+    otherPlayer = (worldState.whoseTurnIsIt+1)%2;
+    tournamentState.winsForPlayer[otherPlayer] += 1;
+    str = "PLAYER ONE WINS: " + tournamentState.winsForPlayer[0] + "<br>";
+    str += "PLAYER TWO WINS: " + tournamentState.winsForPlayer[1];
+    document.getElementById("theDiv").innerHTML = str;
+    prepRound();
+};
+function processTurn(){
+    response = playerFunctions[worldState.whoseTurnIsIt](worldState);
+    playerPosition = worldState.whereArePlayers[worldState.whoseTurnIsIt];
+    otherPosition = worldState.whereArePlayers[(worldState.whoseTurnIsIt+1)%2];
+    if(!response.hasOwnProperty("ruleOutOrMove")){
+        gameOver();
+    }
+    else{
+        if((response.ruleOutOrMove!="ruleOut")&&(response.ruleOutOrMove!="move")){
+            gameOver();
+        }
+        if(response.ruleOutOrMove=="ruleOut"){
+            if(worldState.isNodeRuledOut[playerPosition]){
+                gameOver();
+            }
+            else{
+                worldState.isNodeRuledOut[playerPosition] = true;
+            }
+        }
+        if(response.ruleOutOrMove=="move"){
+            if(!response.hasOwnProperty("moveTo")){
+                gameOver();
+            }
+            else{
+                if(worldState.areNodesConnected[playerPosition][response.moveTo]){
+                    if(worldState.isNodeRuledOut[response.moveTo]){
+                        gameOver();
+                    }
+                    else{
+                        if(response.moveTo==otherPosition){
+                            gameOver();
+                        }
+                        else{
+                            worldState.whereArePlayers[worldState.whoseTurnIsIt] = response.moveTo;
+                        }
+                    }
+                }
+                else{
+                    gameOver();
+                }
+            }
+        }
+    }
+    if(worldState.whoseTurnIsIt==0){
+        worldState.whoseTurnIsIt = 1;
+    }
+    else{
+        worldState.whoseTurnIsIt = 0;
+    }
+    redraw();
+}
+function prepRound(){
+    // World setup
+    worldState = {numberOfNodes:30,
+        areNodesConnected:[],
+        isNodeRuledOut:[],
+        whereArePlayers:[],
+        whoseTurnIsIt:0};
+    // Node connection setup
+    for(a=0;a<worldState.numberOfNodes;a++){
+        worldState.areNodesConnected[a] = [];
+        for(b=0;b<worldState.numberOfNodes;b++){
+            worldState.areNodesConnected[a][b] = false;
+        }
+    }
+    for(a=1;a<worldState.numberOfNodes;a++){
+        linkTo = Math.floor((a-1)*Math.random());
+        worldState.areNodesConnected[a][linkTo] = true;
+        worldState.areNodesConnected[linkTo][a] = true;
+    }
+    for(a=0;a<7;a++){
+        linkTo = Math.floor(Math.random()*worldState.numberOfNodes);
+        linkFrom = Math.floor(Math.random()*worldState.numberOfNodes);
+        worldState.areNodesConnected[linkTo][linkFrom] = true;
+        worldState.areNodesConnected[linkFrom][linkTo] = true;
+    }
+    for(a=0;a<worldState.numberOfNodes;a++){
+        worldState.areNodesConnected[a][a] = false;
+    }
+    // Node ruleout setup
+    for(a=0;a<worldState.numberOfNodes;a++){
+        worldState.isNodeRuledOut[a] = false;
+    }
+    // Player location setup
+    worldState.whereArePlayers[0] = Math.floor(Math.random()*worldState.numberOfNodes);
+    worldState.whereArePlayers[1] = Math.floor(Math.random()*worldState.numberOfNodes);
+    while(worldState.whereArePlayers[0]==worldState.whereArePlayers[1]){
+        worldState.whereArePlayers[0] = Math.floor(Math.random()*worldState.numberOfNodes);
+        worldState.whereArePlayers[1] = Math.floor(Math.random()*worldState.numberOfNodes);
+    }
+    // Which player moves first
+    worldState.whoseTurnIsIt = Math.floor(Math.random()*2);
+}
+cnvs = document.getElementById("theCanvas");
+ctx = cnvs.getContext("2d");
+prepRound();
+tournamentState = {winsForPlayer:[0,0]}
+//playerFunctions = [playerAlwaysRuleOut,playerAlwaysMoveRandom];
+playerFunctions = [playerAlwaysRuleOut,playerRuleOutMostOpen];
+setInterval(processTurn,10);
+</script>
+</html>
